@@ -63,4 +63,14 @@ public class NotificationTask {
     public int hashCode() {
         return Objects.hash(p_key, chatId, notification, dateTime);
     }
+
+    @Override
+    public String toString() {
+        return "NotificationTask{" +
+                "p_key=" + p_key +
+                ", chatId=" + chatId +
+                ", notification='" + notification + '\'' +
+                ", dateTime=" + dateTime +
+                '}';
+    }
 }
