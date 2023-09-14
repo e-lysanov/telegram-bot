@@ -14,7 +14,6 @@ import pro.sky.telegrambot.model.NotificationTask;
 import pro.sky.telegrambot.repository.NotificationTaskRepository;
 
 import javax.annotation.PostConstruct;
-import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -52,7 +51,6 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
     @Override
     public int process(List<Update> updates) {
             updates.forEach(update -> {
-//                Matcher matcher = pattern.matcher(update.message().text());
                 // информация об апдейтах
                 logger.info("Processing update: {}", update);
                 // записываю данные: сообщение и айди чата
@@ -68,6 +66,7 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                         sendNotification(chatId, messageText);
                     }
                 } catch (NullPointerException e) {
+                    // обработка исключения получения смайлов или стикеров
                     logger.warn("Получены некорректные данные в чате " + chatId);
                     sendMessage(chatId, "Извини, я тебя не понимаю, попробуй еще раз");
                 }
@@ -106,6 +105,7 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                 logger.warn("Получены некорректные данные в чате " + chatId);
             }
         } catch (DateTimeParseException e) {
+            // обработка исключения нереальных дат
             logger.warn("Получены некорректные данные в чате " + chatId);
             sendMessage(chatId, " Отправь реальную дату");
         }
