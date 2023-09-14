@@ -8,6 +8,7 @@ import com.pengrad.telegrambot.response.SendResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import pro.sky.telegrambot.model.NotificationTask;
 import pro.sky.telegrambot.repository.NotificationTaskRepository;
@@ -15,6 +16,8 @@ import pro.sky.telegrambot.repository.NotificationTaskRepository;
 import javax.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,15 +54,15 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                 // информация об апдейтах
                 logger.info("Processing update: {}", update);
                 // записываю данные: сообщение и айди чата
-                String notificationText = update.message().text();
+                String messageText = update.message().text();
                 Long chatId = update.message().chat().id();
                 // проверяю на /start
-                if (notificationText.equals("/start")) {
+                if (messageText.equals("/start")) {
                     // отправляю приветствие
                     sendStartMessage(chatId, update.message().chat().firstName());
                 } else {
-                    // обрабатываю входящее напоминание
-                    sendNotification(chatId, notificationText);
+                    // обрабатываю входящее сообщение (уведомление об ошибке/ уведомление о создании напоминания)
+                    sendNotification(chatId, messageText);
                 }
                 // TODO добавить обработку исключения, когда на вход поступает нужный нам формат, но вне реалистичных пределов значения (99.99.0000 99:99 например)
             });
@@ -79,8 +82,8 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
         SendResponse response = telegramBot.execute(sendMessage);
     }
 
-    private void sendNotification(Long chatId, String notification) {
-        Matcher matcher = pattern.matcher(notification);
+    private void sendNotification(Long chatId, String messageText) {
+        Matcher matcher = pattern.matcher(messageText);
         // проверяю, совпадает ли сообщение с форматом даты-времени и напоминания
         if (matcher.matches()) {
             // создаю сущность "напоминание" и присваиваю ей значения, которые получил в сообщении пользователя
@@ -95,5 +98,16 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
             sendMessage(chatId, "Извини, я тебя не понимаю, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
             logger.warn("Получены некорректные данные в чате " + chatId);
         }
+    }
+
+    @Scheduled(cron = "0 0/1 * * * *")
+    public void findAndSendNotification() {
+        // создаю список всех записей, у которых время напоминания СЕЙЧАС
+        List<NotificationTask> notifications = new ArrayList<>(notificationTaskRepository.findAllByDateTime(LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)));
+        // рассылаю уведомления по всем чатам из списка
+        notifications.forEach(notificationTask -> {
+            sendMessage(notificationTask.getChatId(), notificationTask.getNotification());
+            logger.info("Отправлено напоминание для чата " + notificationTask.getChatId());
+        });
     }
 }
