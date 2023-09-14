@@ -14,8 +14,10 @@ import pro.sky.telegrambot.model.NotificationTask;
 import pro.sky.telegrambot.repository.NotificationTaskRepository;
 
 import javax.annotation.PostConstruct;
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +66,6 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                     // обрабатываю входящее сообщение (уведомление об ошибке/ уведомление о создании напоминания)
                     sendNotification(chatId, messageText);
                 }
-                // TODO добавить обработку исключения, когда на вход поступает нужный нам формат, но вне реалистичных пределов значения (99.99.0000 99:99 например)
             });
         return UpdatesListener.CONFIRMED_UPDATES_ALL;
     }
@@ -84,19 +85,24 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
 
     private void sendNotification(Long chatId, String messageText) {
         Matcher matcher = pattern.matcher(messageText);
-        // проверяю, совпадает ли сообщение с форматом даты-времени и напоминания
-        if (matcher.matches()) {
-            // создаю сущность "напоминание" и присваиваю ей значения, которые получил в сообщении пользователя
-            String notificationText = matcher.group(3);
-            LocalDateTime dateTime = LocalDateTime.parse(matcher.group(1), dateTimeFormatter);
-            // сохраняю напоминание в БД
-            notificationTaskRepository.save(new NotificationTask(chatId, notificationText, dateTime));
-            // отправляю сообщение пользователю
-            sendMessage(chatId, "Понял-принял, все напомню!");
-            logger.info("Напоминание сохранено для чата " + chatId);
-        } else {
-            sendMessage(chatId, "Извини, я тебя не понимаю, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
+        try {
+            // проверяю, совпадает ли сообщение с форматом даты-времени и напоминания
+            if (matcher.matches()) {
+                // создаю сущность "напоминание" и присваиваю ей значения, которые получил в сообщении пользователя
+                String notificationText = matcher.group(3);
+                LocalDateTime dateTime = LocalDateTime.parse(matcher.group(1), dateTimeFormatter);
+                // сохраняю напоминание в БД
+                notificationTaskRepository.save(new NotificationTask(chatId, notificationText, dateTime));
+                // отправляю сообщение пользователю
+                sendMessage(chatId, "Понял-принял, все напомню!");
+                logger.info("Напоминание сохранено для чата " + chatId);
+            } else {
+                sendMessage(chatId, "Извини, я тебя не понимаю, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
+                logger.warn("Получены некорректные данные в чате " + chatId);
+            }
+        } catch (DateTimeParseException e) {
             logger.warn("Получены некорректные данные в чате " + chatId);
+            sendMessage(chatId, " Отправь реальную дату");
         }
     }
 
