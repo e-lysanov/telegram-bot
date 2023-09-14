@@ -59,12 +59,17 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                 String messageText = update.message().text();
                 Long chatId = update.message().chat().id();
                 // проверяю на /start
-                if (messageText.equals("/start")) {
-                    // отправляю приветствие
-                    sendStartMessage(chatId, update.message().chat().firstName());
-                } else {
-                    // обрабатываю входящее сообщение (уведомление об ошибке/ уведомление о создании напоминания)
-                    sendNotification(chatId, messageText);
+                try {
+                    if (messageText.equals("/start")) {
+                        // отправляю приветствие
+                        sendStartMessage(chatId, update.message().chat().firstName());
+                    } else {
+                        // обрабатываю входящее сообщение (уведомление об ошибке/ уведомление о создании напоминания)
+                        sendNotification(chatId, messageText);
+                    }
+                } catch (NullPointerException e) {
+                    logger.warn("Получены некорректные данные в чате " + chatId);
+                    sendMessage(chatId, "Извини, я тебя не понимаю, попробуй еще раз");
                 }
             });
         return UpdatesListener.CONFIRMED_UPDATES_ALL;
@@ -97,7 +102,7 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
                 sendMessage(chatId, "Понял-принял, все напомню!");
                 logger.info("Напоминание сохранено для чата " + chatId);
             } else {
-                sendMessage(chatId, "Извини, я тебя не понимаю, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
+                sendMessage(chatId, "Извини, я тебя не понимаю, попробуй еще раз");
                 logger.warn("Получены некорректные данные в чате " + chatId);
             }
         } catch (DateTimeParseException e) {
