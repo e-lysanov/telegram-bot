@@ -22,13 +22,20 @@ import java.util.regex.Pattern;
 @Service
 public class TelegramBotUpdatesListener implements UpdatesListener {
 
-    private NotificationTaskRepository notificationTaskRepository;
+    private final NotificationTaskRepository notificationTaskRepository;
 
     public TelegramBotUpdatesListener(NotificationTaskRepository notificationTaskRepository) {
         this.notificationTaskRepository = notificationTaskRepository;
     }
 
-    private Logger logger = LoggerFactory.getLogger(TelegramBotUpdatesListener.class);
+    private final Logger logger = LoggerFactory.getLogger(TelegramBotUpdatesListener.class);
+
+    // регулярка для определения даты-времени в сообщении
+    private Pattern pattern = Pattern.compile("([0-9.:\\s]{16})(\\s)([\\W+]+)");
+
+    // паттерн форматирования текста в дату-время
+    private DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+
 
     @Autowired
     private TelegramBot telegramBot;
@@ -40,53 +47,46 @@ public class TelegramBotUpdatesListener implements UpdatesListener {
 
     @Override
     public int process(List<Update> updates) {
-        Pattern pattern = Pattern.compile("([0-9.:\\s]{16})(\\s)([\\W+]+)");
+//        Pattern pattern = Pattern.compile("([0-9.:\\s]{16})(\\s)([\\W+]+)");
             updates.forEach(update -> {
                 Matcher matcher = pattern.matcher(update.message().text());
                 logger.info("Processing update: {}", update);
                 // Process your updates here
+
                 // проверяю, приходит ли команда старт
                 if (update.message().text().equals("/start")) {
                     System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-                    // запоминаю айди чата
+
+                    // запоминаю айди чата, создаю сообщение и отправляю приветствие
                     Long chatId = update.message().chat().id();
-                    // создаю сообщение
-                    SendMessage message = new SendMessage(chatId, "Привет! Чтобы добавить напоминание, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ Напоминание*");
-                    // отправляю приветствие
-                    SendResponse response = telegramBot.execute(message);
-                } else if (matcher.matches()) {
-                    System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-                    // запоминаю айди чата
-                    Long chatId = update.message().chat().id();
-                    // создаю сообщение
-                    SendMessage message = new SendMessage(chatId, "Понял-принял, все напомню!");
-                    // отправляю сообщение
+                    SendMessage message = new SendMessage(chatId, "Привет! Чтобы добавить напоминание, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
                     SendResponse response = telegramBot.execute(message);
 
+                // проверяю, совпадает ли сообщение с форматом даты-времени и напоминания
+                // TODO добавить обработку исключения, когда на вход поступает нужный нам формат, но вне реалистичных пределов значения (99.99.0000 99:99 например)
+                } else if (matcher.matches()) {
+                    System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+                    Long chatId = update.message().chat().id();
+                    SendMessage message = new SendMessage(chatId, "Понял-принял, все напомню!");
+                    SendResponse response = telegramBot.execute(message);
+
+                    // создаю сущность "напоминание" и присваиваю ей значения, которые получил в сообщении пользователя
                     NotificationTask notificationTask = new NotificationTask();
                     notificationTask.setChatId(chatId);
                     String notification = matcher.group(3);
                     notificationTask.setNotification(notification);
-                    String date = matcher.group(1);
-                    String time = matcher.group(2);
-                    String dateTimeString = (date + time).substring(0, 16);
-                    LocalDateTime dateTime = LocalDateTime.parse(dateTimeString, DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
+                    LocalDateTime dateTime = LocalDateTime.parse(matcher.group(1), dateTimeFormatter);
                     notificationTask.setDateTime(dateTime);
+
+                    // сохраняю напоминание в БД
                     notificationTaskRepository.save(notificationTask);
                 } else {
                     System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-                    // запоминаю айди чата
                     Long chatId = update.message().chat().id();
-                    // создаю сообщение
-                    SendMessage message = new SendMessage(chatId, "Извини, я тебя не понимаю");
-                    // отправляю сообщение
+                    SendMessage message = new SendMessage(chatId, "Извини, я тебя не понимаю, отправь сообщение вида *ДД.ММ.ГГГГ ЧЧ:ММ НАПОМИНАНИЕ*");
                     SendResponse response = telegramBot.execute(message);
                 }
             });
         return UpdatesListener.CONFIRMED_UPDATES_ALL;
     }
-//     TODO добавить по заданию обработку сообщений (брать дату-время и напоминание, записывать в МАПУ, где ключом будет дата, а значением сообщение)
-//     TODO потом в случае когда таймер совпадает с датой, вытягиваем по дате сообщение и присылаем в нужный нам чат (поиск чата еще не продумал, возможно вторая мапа с датой и чатАйди)
-
-
 }
